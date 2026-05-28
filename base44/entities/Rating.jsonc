@@ -1,0 +1,81 @@
+{
+  "name": "Rating",
+  "type": "object",
+  "properties": {
+    "order_id": {
+      "type": "string",
+      "title": "\u0627\u0644\u0637\u0644\u0628"
+    },
+    "customer_phone": {
+      "type": "string",
+      "title": "\u062c\u0648\u0627\u0644 \u0627\u0644\u0639\u0645\u064a\u0644"
+    },
+    "store_id": {
+      "type": "string",
+      "title": "\u0627\u0644\u0628\u0642\u0627\u0644\u0629"
+    },
+    "driver_id": {
+      "type": "string",
+      "title": "\u0627\u0644\u0645\u0646\u062f\u0648\u0628"
+    },
+    "store_rating": {
+      "type": "number",
+      "title": "\u062a\u0642\u064a\u064a\u0645 \u0627\u0644\u0628\u0642\u0627\u0644\u0629"
+    },
+    "driver_rating": {
+      "type": "number",
+      "title": "\u062a\u0642\u064a\u064a\u0645 \u0627\u0644\u0645\u0646\u062f\u0648\u0628"
+    },
+    "comment": {
+      "type": "string",
+      "title": "\u0627\u0644\u062a\u0639\u0644\u064a\u0642"
+    }
+  },
+  "required": [
+    "order_id",
+    "store_rating",
+    "driver_rating"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "customer_phone": "{{user.phone}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "customer_phone": "{{user.phone}}"
+        },
+        {
+          "store_id": "{{user.store_id}}"
+        },
+        {
+          "driver_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

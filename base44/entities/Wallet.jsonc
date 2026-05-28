@@ -1,0 +1,65 @@
+{
+  "name": "Wallet",
+  "type": "object",
+  "properties": {
+    "customer_phone": {
+      "type": "string",
+      "title": "\u062c\u0648\u0627\u0644 \u0627\u0644\u0639\u0645\u064a\u0644"
+    },
+    "customer_name": {
+      "type": "string",
+      "title": "\u0627\u0633\u0645 \u0627\u0644\u0639\u0645\u064a\u0644"
+    },
+    "balance": {
+      "type": "number",
+      "title": "\u0627\u0644\u0631\u0635\u064a\u062f",
+      "default": 0
+    }
+  },
+  "required": [
+    "customer_phone"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "customer_phone": "{{user.phone}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "customer_phone": "{{user.phone}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "customer_phone": "{{user.phone}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

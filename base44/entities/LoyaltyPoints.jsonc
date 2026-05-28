@@ -1,0 +1,86 @@
+{
+  "name": "LoyaltyPoints",
+  "type": "object",
+  "properties": {
+    "customer_phone": {
+      "type": "string",
+      "title": "\u062c\u0648\u0627\u0644 \u0627\u0644\u0639\u0645\u064a\u0644"
+    },
+    "customer_name": {
+      "type": "string",
+      "title": "\u0627\u0633\u0645 \u0627\u0644\u0639\u0645\u064a\u0644"
+    },
+    "points_balance": {
+      "type": "number",
+      "title": "\u0631\u0635\u064a\u062f \u0627\u0644\u0646\u0642\u0627\u0637",
+      "default": 0
+    },
+    "total_earned": {
+      "type": "number",
+      "title": "\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u0646\u0642\u0627\u0637 \u0627\u0644\u0645\u0643\u062a\u0633\u0628\u0629",
+      "default": 0
+    },
+    "total_redeemed": {
+      "type": "number",
+      "title": "\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u0646\u0642\u0627\u0637 \u0627\u0644\u0645\u0633\u062a\u0628\u062f\u0644\u0629",
+      "default": 0
+    },
+    "tier": {
+      "type": "string",
+      "title": "\u0627\u0644\u0645\u0633\u062a\u0648\u0649",
+      "enum": [
+        "\u0628\u0631\u0648\u0646\u0632\u064a",
+        "\u0641\u0636\u064a",
+        "\u0630\u0647\u0628\u064a",
+        "\u0628\u0644\u0627\u062a\u064a\u0646\u064a"
+      ],
+      "default": "\u0628\u0631\u0648\u0646\u0632\u064a"
+    }
+  },
+  "required": [
+    "customer_phone"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "customer_phone": "{{user.phone}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "customer_phone": "{{user.phone}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "customer_phone": "{{user.phone}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

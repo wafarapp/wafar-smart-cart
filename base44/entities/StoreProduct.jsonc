@@ -1,0 +1,84 @@
+{
+  "name": "StoreProduct",
+  "type": "object",
+  "properties": {
+    "catalog_product_id": {
+      "type": "string",
+      "title": "\u0645\u0639\u0631\u0641 \u0627\u0644\u0645\u0646\u062a\u062c \u0641\u064a \u0627\u0644\u0643\u062a\u0627\u0644\u0648\u062c"
+    },
+    "store_id": {
+      "type": "string",
+      "title": "\u0645\u0639\u0631\u0641 \u0627\u0644\u0645\u062a\u062c\u0631"
+    },
+    "store_name": {
+      "type": "string",
+      "title": "\u0627\u0633\u0645 \u0627\u0644\u0645\u062a\u062c\u0631"
+    },
+    "price": {
+      "type": "number",
+      "title": "\u0627\u0644\u0633\u0639\u0631 (\u0631\u064a\u0627\u0644)"
+    },
+    "stock_quantity": {
+      "type": "number",
+      "title": "\u0627\u0644\u0643\u0645\u064a\u0629 \u0627\u0644\u0645\u062a\u0648\u0641\u0631\u0629",
+      "default": 100
+    },
+    "is_available": {
+      "type": "boolean",
+      "title": "\u0645\u062a\u0648\u0641\u0631",
+      "default": true
+    },
+    "offer_text": {
+      "type": "string",
+      "title": "\u0646\u0635 \u0627\u0644\u0639\u0631\u0636"
+    },
+    "offer_price": {
+      "type": "number",
+      "title": "\u0633\u0639\u0631 \u0627\u0644\u0639\u0631\u0636"
+    }
+  },
+  "required": [
+    "catalog_product_id",
+    "store_id",
+    "price"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "store_id": "{{user.store_id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "read": {},
+    "update": {
+      "$or": [
+        {
+          "store_id": "{{user.store_id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "store_id": "{{user.store_id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}
