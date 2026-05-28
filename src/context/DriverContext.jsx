@@ -11,6 +11,7 @@ import {
   mergeRemoteAndLocalOrders,
   updateLocalOrder,
   subscribeToLocalOrders,
+  getLocalOrdersForPhone,
 } from '@/lib/localOrders';
 
 const DriverContext = createContext(null);
@@ -85,7 +86,8 @@ export function DriverProvider({ children }) {
           console.warn('[DriverContext] Base44 list failed, using local orders:', err.message);
         }
 
-        const allOrders = mergeRemoteAndLocalOrders(remote);
+        const local = getLocalOrdersForPhone();
+      const allOrders = [...remote, ...local];
         const d = driverRef.current;
         const rejected = getRejectedOrderIds();
 
