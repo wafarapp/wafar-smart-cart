@@ -89,7 +89,7 @@ export function DriverProvider({ children }) {
         const d = driverRef.current;
         const rejected = getRejectedOrderIds();
 
-        setPendingOrders(filterAvailableOrders(allOrders, d, rejected));
+        setPendingOrders(allOrders);
         setLastRefresh(new Date());
 
         if (d?.id) {
