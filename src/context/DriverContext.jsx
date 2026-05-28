@@ -96,11 +96,7 @@ export function DriverProvider({ children }) {
 
         const availableOrders = allOrders.filter((o) =>
           isPendingForDriver(o.status) &&
-o.status !== 'accepted_by_driver' &&
-!o.driver_id &&
-!o.assigned_to_driver &&
-!o.accepted_by_driver
-        );
+
         
         setPendingOrders(availableOrders);
         setLastRefresh(new Date());
