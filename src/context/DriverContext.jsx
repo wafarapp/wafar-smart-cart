@@ -94,9 +94,9 @@ export function DriverProvider({ children }) {
         const d = driverRef.current;
         const rejected = getRejectedOrderIds();
 
-        const availableOrders = allOrders.filter((o) =>
-          isPendingForDriver(o.status)
-      );
+        const availableOrders = allOrders.filter(
+          (o) => isPendingForDriver(o.status) && !o.driver_id
+        );
         
         setPendingOrders(availableOrders);
         setLastRefresh(new Date());
