@@ -79,12 +79,7 @@ export function DriverProvider({ children }) {
       if (force) setIsRefreshing(true);
 
       try {
-        let remote = [];
-        try {
-          remote = await base44.entities.Order.list('-created_date', 150);
-        } catch (err) {
-          console.warn('[DriverContext] Base44 list failed, using local orders:', err.message);
-        }
+        const remote = [];
 
         const local = getLocalOrdersForPhone();
         const allOrders = [...remote, ...local].filter(
