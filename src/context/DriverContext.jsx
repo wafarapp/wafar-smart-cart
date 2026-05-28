@@ -134,8 +134,7 @@ const interval = setInterval(() => loadData(true), 2000);
 
       const d = driverRef.current;
       const rejected = getRejectedOrderIds();
-      const isAvailable =
-        isPendingForDriver(data.status) && !data.driver_id && !rejected.includes(data.id) && isOrderVisibleToDriver(data, d);
+      const isAvailable = true;        
 
       if (event.type === 'create' && isAvailable) {
         if ('Notification' in window && Notification.permission === 'granted') {
