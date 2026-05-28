@@ -143,7 +143,11 @@ const interval = setInterval(() => loadData(true), 2000);
           });
         }
         if (!activeOrderRef.current) {
-          setPendingOrders((prev) => (prev.find((o) => o.id === data.id) ? prev : [data, ...prev]));
+          setPendingOrders((prev) => {
+            const exists = prev.find((o) => o.id === data.id);
+            if (exists) return prev;
+            return [data, ...prev];
+          });
         }
         return;
       }
