@@ -64,7 +64,7 @@ export default function FastDelivery() {
       const { order } = await createOrder({
         order_number: orderNum,
         order_type: 'fast_delivery',
-        status: 'available_for_driver',
+        status: 'pending',
         customer_phone: customer.phone,
         customer_name: customer.name,
         store_name: form.pickup.trim(),

@@ -166,7 +166,7 @@ export default function CustomerCart() {
         store_id: selectedOption.store.id,
         store_name: selectedOption.store.name,
         order_type: 'grocery',
-        status: 'available_for_driver',
+        status: 'pending',
         delivery_mode: selectedOption.mode,
         items_total: selectedOption.itemsTotal,
         delivery_fee: zone.customer_delivery_fee,

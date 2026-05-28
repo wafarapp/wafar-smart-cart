@@ -79,7 +79,7 @@ export default function RestaurantCheckout() {
         customer_name: JSON.parse(localStorage.getItem('wafarCustomer') || '{}').name || '',
         store_id: cartData.restaurant?.id || 'restaurant',
         store_name: cartData.restaurant?.name || 'مطعم',
-        status: 'available_for_driver',
+        status: 'pending',
         items_total: cartData.total,
         delivery_fee: zone.customer_delivery_fee,
         total_amount: cartData.total + zone.customer_delivery_fee,

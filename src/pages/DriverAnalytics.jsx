@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, TrendingUp, Package, Clock, Star, BarChart2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import { getDeliveredOrdersByDriver } from '@/lib/ordersService';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 const glass = { background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '16px' };
@@ -34,12 +35,18 @@ export default function DriverAnalytics() {
 
   const loadData = async () => {
     setLoading(true);
-    const [ords, rats] = await Promise.all([
-      base44.entities.Order.filter({ driver_id: driver.id, status: 'delivered' }),
-      base44.entities.Rating.filter({ driver_id: driver.id })
-    ]);
-    setOrders(ords);
-    setRatings(rats);
+    try {
+      const ords = await getDeliveredOrdersByDriver(driver.id);
+      setOrders(ords);
+    } catch {
+      setOrders([]);
+    }
+    try {
+      const rats = await base44.entities.Rating.filter({ driver_id: driver.id });
+      setRatings(rats);
+    } catch {
+      setRatings([]);
+    }
     setLoading(false);
   };
 

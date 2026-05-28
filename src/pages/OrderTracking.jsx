@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Phone, Star, Package, Clock, MapPin, CheckCircle2, Bike, Store, ShoppingBag, Gift, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
-import { getLocalOrder, getLocalOrdersForPhone, subscribeToLocalOrders } from '@/lib/localOrders';
+import {
+  getOrderByIdOrNumber,
+  getLatestOrderByCustomerPhone,
+  subscribeToOrder,
+} from '@/lib/ordersService';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -156,34 +160,22 @@ export default function OrderTracking() {
 
   const fetchOrder = async (id) => {
     try {
-      const o = await base44.entities.Order.get(id);
-      if (o) { applyOrder(o); return true; }
-    } catch {}
-    try {
-      const byNum = await base44.entities.Order.filter({ order_number: id });
-      if (byNum && byNum.length > 0) {
-        const o = byNum[0];
+      const o = await getOrderByIdOrNumber(id);
+      if (o) {
         window.history.replaceState(null, '', `/track/${o.order_number}`);
         applyOrder(o);
         return true;
       }
     } catch {}
-    const local = getLocalOrder(id);
-    if (local) {
-      window.history.replaceState(null, '', `/track/${local.order_number}`);
-      applyOrder(local);
-      return true;
-    }
     return false;
   };
 
   const findLatestOrder = async (customerPhone) => {
     try {
-      const orders = await base44.entities.Order.filter({ customer_phone: customerPhone }, '-created_date', 1);
-      if (orders && orders.length > 0) return orders[0];
-    } catch {}
-    const localOrders = getLocalOrdersForPhone(customerPhone);
-    return localOrders.length > 0 ? localOrders[0] : null;
+      return await getLatestOrderByCustomerPhone(customerPhone);
+    } catch {
+      return null;
+    }
   };
 
   useEffect(() => {
@@ -222,15 +214,12 @@ export default function OrderTracking() {
     return () => clearTimeout(timeout);
   }, []);
 
-  // Real-time subscription — Base44 remote orders
+  // Real-time subscription — Firestore orders
   useEffect(() => {
-    if (!order?.id || order._localMock) return;
+    if (!order?.id) return;
     if (order.status === 'delivered' || order.status === 'cancelled') return;
 
-    const unsubscribe = base44.entities.Order.subscribe((event) => {
-      if (event.id !== order.id) return;
-      if (event.type === 'delete') return;
-      const updated = event.data;
+    const unsubscribe = subscribeToOrder(order.id, (updated) => {
       if (!updated) return;
       setOrder(updated);
       updateDriverPos(updated);
@@ -240,25 +229,7 @@ export default function OrderTracking() {
     });
 
     return () => unsubscribe();
-  }, [order?.id, order?.status, order?._localMock]);
-
-  // Live updates for local mock orders (driver accept / status changes)
-  useEffect(() => {
-    if (!order?.id || !order._localMock) return;
-    if (order.status === 'delivered' || order.status === 'cancelled') return;
-
-    const refresh = () => {
-      const fresh = getLocalOrder(order.id);
-      if (!fresh) return;
-      setOrder(fresh);
-      updateDriverPos(fresh);
-      if (fresh.cart_items) {
-        try { setCartItems(JSON.parse(fresh.cart_items)); } catch {}
-      }
-    };
-
-    return subscribeToLocalOrders(refresh);
-  }, [order?.id, order?.status, order?._localMock]);
+  }, [order?.id, order?.status]);
 
   const initPositions = (o) => {
     const base = DISTRICT_COORDS[o.district] || [24.7136, 46.6753];

@@ -2,13 +2,12 @@ import { useState, useEffect } from 'react';
 import usePullToRefresh from '../hooks/usePullToRefresh.jsx';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingBag, Clock, ChevronLeft, Package } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
-import { getLocalOrdersForPhone } from '@/lib/localOrders';
+import { getOrdersByCustomerPhone } from '@/lib/ordersService';
 import CustomerBottomNav from '../components/CustomerBottomNav';
 
-const STATUS_AR = { pending: 'في الانتظار', accepted: 'مقبول', preparing: 'يُجهّز', picked_up: 'استلمه المندوب', on_way: 'في الطريق', delivered: 'تم التسليم', cancelled: 'ملغي' };
-const STATUS_COLOR = { pending: '#FCD34D', accepted: '#60A5FA', preparing: '#9F5FF1', picked_up: '#A78BFA', on_way: '#9F5FF1', delivered: '#10B981', cancelled: '#F87171' };
-const STATUS_EMOJI = { pending: '🕐', accepted: '✅', preparing: '📦', picked_up: '🛵', on_way: '🚀', delivered: '🎉', cancelled: '❌' };
+const STATUS_AR = { pending: 'في الانتظار', accepted_by_driver: 'مندوب في الطريق', accepted: 'مقبول', preparing: 'يُجهّز', picked_up: 'استلمه المندوب', on_the_way: 'في الطريق', delivered: 'تم التسليم', cancelled: 'ملغي' };
+const STATUS_COLOR = { pending: '#FCD34D', accepted_by_driver: '#60A5FA', accepted: '#60A5FA', preparing: '#9F5FF1', picked_up: '#A78BFA', on_the_way: '#9F5FF1', delivered: '#10B981', cancelled: '#F87171' };
+const STATUS_EMOJI = { pending: '🕐', accepted_by_driver: '🛵', accepted: '✅', preparing: '📦', picked_up: '🛵', on_the_way: '🚀', delivered: '🎉', cancelled: '❌' };
 
 export default function CustomerOrders() {
   const navigate = useNavigate();
@@ -24,15 +23,12 @@ export default function CustomerOrders() {
   const loadOrders = async () => {
     setLoading(true);
     if (customer.phone) {
-      let data = [];
       try {
-        data = await base44.entities.Order.filter({ customer_phone: customer.phone }, '-created_date', 30);
-      } catch {}
-      const localOrders = getLocalOrdersForPhone(customer.phone);
-      const remoteIds = new Set((data || []).map((o) => o.id));
-      const merged = [...localOrders.filter((o) => !remoteIds.has(o.id)), ...(data || [])];
-      merged.sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
-      setOrders(merged);
+        const data = await getOrdersByCustomerPhone(customer.phone, 30);
+        setOrders(data);
+      } catch {
+        setOrders([]);
+      }
     }
     setLoading(false);
   };

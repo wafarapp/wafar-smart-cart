@@ -1,29 +1,28 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { base44 } from '@/api/base44Client';
 import { isOrderVisibleToDriver, getNeighborhoodGroup } from '@/lib/neighborhoodZones';
 import {
   getRejectedOrderIds,
   rejectOrderLocally,
   isActiveDriverStatus,
-  isPendingForDriver,
 } from '@/lib/driverUtils';
 import {
-  mergeRemoteAndLocalOrders,
-  updateLocalOrder,
-  subscribeToLocalOrders,
-  getLocalOrdersForPhone,
-} from '@/lib/localOrders';
+  subscribeToPendingOrders,
+  subscribeToDriverActiveOrder,
+  subscribeToDriverDeliveredOrders,
+  acceptOrderByDriver,
+  updateOrderStatus,
+} from '@/lib/ordersService';
 
 const DriverContext = createContext(null);
 
-const ACCEPT_STATUS = 'accepted_by_driver';
-
-function filterAvailableOrders(allOrders, driver, rejected) {
-  return allOrders.filter((order) => {
-    const notAssigned = !order.driver_id;
-    const notRejected = !rejected.includes(order.id);
-    return isPendingForDriver(order.status) && notAssigned && notRejected && isOrderVisibleToDriver(order, driver);
-  });
+function filterPendingForDriver(orders, driver, rejected) {
+  return orders.filter(
+    (order) =>
+      !order.driver_id &&
+      order.status === 'pending' &&
+      !rejected.includes(order.id) &&
+      isOrderVisibleToDriver(order, driver)
+  );
 }
 
 function computeTodayStats(deliveredOrders) {
@@ -56,10 +55,10 @@ export function DriverProvider({ children }) {
   const [driverGeoPos, setDriverGeoPos] = useState(null);
   const [actionError, setActionError] = useState(null);
 
-  const isFetching = useRef(false);
-  const debounceTimer = useRef(null);
   const driverRef = useRef(driver);
   const activeOrderRef = useRef(activeOrder);
+  const pendingIdsRef = useRef(new Set());
+  const isFetching = useRef(false);
 
   useEffect(() => {
     driverRef.current = driver;
@@ -69,160 +68,80 @@ export function DriverProvider({ children }) {
     activeOrderRef.current = activeOrder;
   }, [activeOrder]);
 
+  const applyDeliveredStats = useCallback((delivered) => {
+    setCompletedOrders(delivered.slice(0, 30));
+    const stats = computeTodayStats(delivered);
+    setCompletedToday(stats.count);
+    setEarnings(stats.earnings);
+    setLastRefresh(new Date());
+  }, []);
+
   const loadData = useCallback(async (force = false) => {
     if (isFetching.current && !force) return;
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-
-    debounceTimer.current = setTimeout(async () => {
-      if (isFetching.current) return;
-      isFetching.current = true;
-      if (force) setIsRefreshing(true);
-
-      try {
-        const remote = [];
-
-        const local = getLocalOrdersForPhone();
-        const allOrders = [...remote, ...local].filter(
-          (order, index, self) =>
-            index === self.findIndex(o => o.id === order.id)
-        );
-        const d = driverRef.current;
-        const rejected = getRejectedOrderIds();
-
-        const availableOrders = allOrders.filter((o) =>
-          !o.driver_id &&
-          !['accepted_by_driver', 'driver_assigned', 'assigned_to_driver', 'picked_up', 'on_the_way', 'delivered'].includes(o.status)
-        );
-        
-        setPendingOrders(availableOrders);
-        setLastRefresh(new Date());
-
-        if (d?.id) {
-          const myOrders = allOrders.filter((o) => o.driver_id === d.id);
-          const active = myOrders.find((o) => isActiveDriverStatus(o.status));
-          setActiveOrder(active || null);
-
-          const delivered = myOrders.filter((o) => o.status === 'delivered');
-          setCompletedOrders(delivered.slice(0, 30));
-
-          const stats = computeTodayStats(delivered);
-          setCompletedToday(stats.count);
-          setEarnings(stats.earnings);
-        }
-      } catch (err) {
-        console.warn('[DriverContext] loadData error:', err.message);
-      } finally {
-        isFetching.current = false;
-        setIsRefreshing(false);
-      }
-    }, force ? 0 : 400);
+    isFetching.current = true;
+    if (force) setIsRefreshing(true);
+    setLastRefresh(new Date());
+    isFetching.current = false;
+    setIsRefreshing(false);
   }, []);
 
   useEffect(() => {
     if (!driver?.id) return;
 
-    loadData(true);
-const interval = setInterval(() => loadData(true), 2000);
     setIsOnline(driver.is_online ?? driver.online_status ?? false);
 
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
 
-    const unsub = base44.entities.Order.subscribe((event) => {
-      if (event.type === 'delete') return;
-      const data = event.data;
-      if (!data) {
-        loadData();
-        return;
-      }
-
+    const unsubPending = subscribeToPendingOrders((orders) => {
       const d = driverRef.current;
       const rejected = getRejectedOrderIds();
-      const isAvailable = true;        
+      const filtered = filterPendingForDriver(orders, d, rejected);
 
-      if (event.type === 'create' && isAvailable) {
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification('🛵 طلب جديد في حيّك!', {
-            body: `${data.order_type === 'restaurant' ? '🍽️' : data.order_type === 'fast_delivery' ? '⚡' : '🛒'} أجر ${(data.driver_fee ?? 12).toFixed(0)} ر`,
-          });
-        }
-        if (!activeOrderRef.current) {
-          setPendingOrders((prev) => {
-            const exists = prev.find((o) => o.id === data.id);
-            if (exists) return prev;
-            return [data, ...prev];
-          });
-        }
-        return;
+      if (!activeOrderRef.current) {
+        const prevIds = pendingIdsRef.current;
+        filtered.forEach((order) => {
+          if (!prevIds.has(order.id) && 'Notification' in window && Notification.permission === 'granted') {
+            new Notification('🛵 طلب جديد في حيّك!', {
+              body: `${order.order_type === 'restaurant' ? '🍽️' : order.order_type === 'fast_delivery' ? '⚡' : '🛒'} أجر ${(order.driver_fee ?? 12).toFixed(0)} ر`,
+            });
+          }
+        });
+        pendingIdsRef.current = new Set(filtered.map((o) => o.id));
+        setPendingOrders(filtered);
+      } else {
+        setPendingOrders([]);
       }
+      setLastRefresh(new Date());
+    });
 
-      if (!isPendingForDriver(data.status) || data.driver_id) {
-        setPendingOrders((prev) => prev.filter((o) => o.id !== data.id));
-      } else if (isAvailable && !activeOrderRef.current) {
-        setPendingOrders((prev) => (prev.find((o) => o.id === data.id) ? prev : [data, ...prev]));
+    const unsubActive = subscribeToDriverActiveOrder(driver.id, (order) => {
+      if (order && isActiveDriverStatus(order.status)) {
+        setActiveOrder(order);
+        setPendingOrders([]);
+      } else {
+        setActiveOrder(null);
       }
+      setLastRefresh(new Date());
+    });
 
-      if (d?.id && data.driver_id === d.id) {
-        if (isActiveDriverStatus(data.status)) {
-          setActiveOrder(data);
-        } else if (data.status === 'delivered' || data.status === 'cancelled') {
-          setActiveOrder(null);
-          loadData(true);
-        }
-      }
+    const unsubDelivered = subscribeToDriverDeliveredOrders(driver.id, (delivered) => {
+      applyDeliveredStats(delivered);
     });
 
     return () => {
-      unsub();
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      unsubPending();
+      unsubActive();
+      unsubDelivered();
     };
-  }, [driver?.id, loadData]);
+  }, [driver?.id, applyDeliveredStats]);
 
   useEffect(() => {
-    if (!driver?.id) return;
-
-    const notifyNewLocalOrder = (order) => {
-      const d = driverRef.current;
-      const rejected = getRejectedOrderIds();
-      const isAvailable = true;
-
-      if (!isAvailable || activeOrderRef.current) return;
-
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('🛵 طلب جديد في حيّك!', {
-          body: `${order.order_type === 'restaurant' ? '🍽️' : order.order_type === 'fast_delivery' ? '⚡' : '🛒'} أجر ${(order.driver_fee ?? 12).toFixed(0)} ر`,
-        });
-      }
-      setPendingOrders((prev) => (prev.find((o) => o.id === order.id) ? prev : [order, ...prev]));
-    };
-
-    const unsubLocal = subscribeToLocalOrders((detail) => {
-      if (detail?.type === 'create') {
-        notifyNewLocalOrder(detail.order);
-      }
-      loadData(true);
-    });
-
-    return unsubLocal;
-  }, [driver?.id, loadData]);
-
-  useEffect(() => {
-    if (!isOnline || !driver?.id || driver?._localDemo) return;
+    if (!isOnline || !driver?.id) return;
     const watch = navigator.geolocation?.watchPosition?.(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        setDriverGeoPos([lat, lng]);
-        try {
-          await base44.entities.Driver.update(driver.id, {
-            lat,
-            lng,
-            last_location_update: new Date().toISOString(),
-          });
-        } catch {
-          /* non-blocking */
-        }
+      (pos) => {
+        setDriverGeoPos([pos.coords.latitude, pos.coords.longitude]);
       },
       () => {},
       { enableHighAccuracy: true, maximumAge: 15000 }
@@ -230,7 +149,7 @@ const interval = setInterval(() => loadData(true), 2000);
     return () => {
       if (watch != null) navigator.geolocation.clearWatch(watch);
     };
-  }, [isOnline, driver?.id, driver?._localDemo]);
+  }, [isOnline, driver?.id]);
 
   const saveDriverSession = (d) => {
     const session = {
@@ -266,61 +185,22 @@ const interval = setInterval(() => loadData(true), 2000);
     const trimmedPhone = phone.trim();
     const group = neighborhood_group || getNeighborhoodGroup('الجنادرية');
 
+    let localExisting = null;
     try {
-      const existing = await base44.entities.Driver.filter({ phone: trimmedPhone });
-      let d;
-
-      if (existing.length > 0) {
-        d = existing[0];
-        const updates = {
-          name: trimmedName,
-          neighborhood_group: group,
-          district: d.district || group,
-          is_online: true,
-          status: 'available',
-        };
-        await base44.entities.Driver.update(d.id, updates);
-        d = { ...d, ...updates };
-      } else {
-        d = await base44.entities.Driver.create({
-          name: trimmedName,
-          phone: trimmedPhone,
-          district: group,
-          neighborhood_group: group,
-          is_online: true,
-          is_approved: true,
-          daily_earnings: 0,
-          total_orders: 0,
-          status: 'available',
-        });
-      }
-
-      return saveDriverSession({
-        ...d,
-        name: trimmedName,
-        phone: trimmedPhone,
-        neighborhood_group: group,
-      });
-    } catch (err) {
-      console.warn('[DriverContext] Base44 unavailable, using local demo login:', err.message);
-
-      let localExisting = null;
-      try {
-        const saved = JSON.parse(localStorage.getItem('wafarDriver') || 'null');
-        if (saved?.phone === trimmedPhone) localExisting = saved;
-      } catch {
-        /* ignore */
-      }
-
-      const d = createLocalDemoDriver({
-        name: trimmedName,
-        phone: trimmedPhone,
-        neighborhood_group: group,
-        existing: localExisting,
-      });
-
-      return saveDriverSession(d);
+      const saved = JSON.parse(localStorage.getItem('wafarDriver') || 'null');
+      if (saved?.phone === trimmedPhone) localExisting = saved;
+    } catch {
+      /* ignore */
     }
+
+    const d = createLocalDemoDriver({
+      name: trimmedName,
+      phone: trimmedPhone,
+      neighborhood_group: group,
+      existing: localExisting,
+    });
+
+    return saveDriverSession(d);
   };
 
   const logout = () => {
@@ -331,6 +211,7 @@ const interval = setInterval(() => loadData(true), 2000);
     setActiveOrder(null);
     setIsOnline(false);
     setActionError(null);
+    pendingIdsRef.current = new Set();
   };
 
   const toggleOnline = async () => {
@@ -343,16 +224,6 @@ const interval = setInterval(() => loadData(true), 2000);
         online_status: next,
         status: next ? 'available' : 'offline',
       };
-      if (!driver._localDemo) {
-        try {
-          await base44.entities.Driver.update(driver.id, {
-            is_online: next,
-            status: next ? 'available' : 'offline',
-          });
-        } catch (err) {
-          console.warn('[DriverContext] toggleOnline backend sync failed:', err.message);
-        }
-      }
       localStorage.setItem('wafarDriver', JSON.stringify(updated));
       setDriver(updated);
     }
@@ -374,42 +245,11 @@ const interval = setInterval(() => loadData(true), 2000);
 
     setPendingOrders((prev) => prev.filter((o) => o.id !== order.id));
 
-    const acceptPatch = {
-      status: ACCEPT_STATUS,
-      driver_id: d.id,
-      driver_name: d.name,
-      driver_phone: d.phone,
-    };
-    updateLocalOrder(order.id, acceptPatch);
     try {
-      if (order._localMock) {
-        const updated = updateLocalOrder(order.id, acceptPatch);
-        setActiveOrder(updated || { ...order, ...acceptPatch });
-        activeOrderRef.current = updated || { ...order, ...acceptPatch };
-      } else if (!d._localDemo) {
-        const fresh = await base44.entities.Order.get(order.id);
-        if (fresh.driver_id && fresh.driver_id !== d.id) {
-          setActionError('تم قبول الطلب من مندوب آخر');
-          loadData(true);
-          return false;
-        }
-        if (!isPendingForDriver(fresh.status)) {
-          setActionError('الطلب لم يعد متاحاً');
-          loadData(true);
-          return false;
-        }
+      const updated = await acceptOrderByDriver(order.id, d);
 
-        const updated = await base44.entities.Order.update(order.id, acceptPatch);
-
-        await base44.entities.Driver.update(d.id, {
-          status: 'busy',
-          active_order_id: order.id,
-        });
-
-        setActiveOrder({ ...order, ...updated, ...acceptPatch });
-      } else {
-        setActiveOrder({ ...order, ...acceptPatch });
-      }
+      setActiveOrder(updated);
+      activeOrderRef.current = updated;
 
       const updatedDriver = { ...d, status: 'busy', active_order_id: order.id };
       localStorage.setItem('wafarDriver', JSON.stringify(updatedDriver));
@@ -417,7 +257,13 @@ const interval = setInterval(() => loadData(true), 2000);
       return true;
     } catch (err) {
       console.warn('[DriverContext] acceptOrder failed:', err.message);
-      setActionError('تعذّر قبول الطلب — حاول مجدداً');
+      if (err.message === 'ALREADY_ASSIGNED') {
+        setActionError('تم قبول الطلب من مندوب آخر');
+      } else if (err.message === 'NOT_AVAILABLE') {
+        setActionError('الطلب لم يعد متاحاً');
+      } else {
+        setActionError('تعذّر قبول الطلب — حاول مجدداً');
+      }
       loadData(true);
       return false;
     }
@@ -448,15 +294,8 @@ const interval = setInterval(() => loadData(true), 2000);
     if (next === 'delivered') patch.delivered_date = now;
 
     try {
-      let updatedOrder;
-      if (activeOrder._localMock) {
-        updatedOrder = updateLocalOrder(activeOrder.id, patch) || { ...activeOrder, ...patch };
-      } else if (!driver?._localDemo) {
-        await base44.entities.Order.update(activeOrder.id, patch);
-        updatedOrder = { ...activeOrder, ...patch };
-      } else {
-        updatedOrder = { ...activeOrder, ...patch };
-      }
+      await updateOrderStatus(activeOrder.id, patch);
+      const updatedOrder = { ...activeOrder, ...patch };
 
       if (next === 'delivered') {
         const orderEarning = activeOrder.driver_fee ?? 12;
@@ -468,21 +307,14 @@ const interval = setInterval(() => loadData(true), 2000);
           active_order_id: null,
         };
 
-        if (!driver?._localDemo) {
-          await base44.entities.Driver.update(driver.id, {
-            daily_earnings: updatedDriver.daily_earnings,
-            total_orders: updatedDriver.total_orders,
-            status: 'available',
-            active_order_id: null,
-          });
-        }
-
         localStorage.setItem('wafarDriver', JSON.stringify(updatedDriver));
         setDriver(updatedDriver);
         setActiveOrder(null);
+        activeOrderRef.current = null;
         loadData(true);
       } else {
         setActiveOrder(updatedOrder);
+        activeOrderRef.current = updatedOrder;
       }
     } catch (err) {
       console.warn('[DriverContext] advanceOrderStatus failed:', err.message);

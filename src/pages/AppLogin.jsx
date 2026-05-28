@@ -63,49 +63,21 @@ export default function AppLogin() {
     const trimmedPhone = driverPhone.trim();
     const group = 'الجنادرية';
 
-    try {
-      let existing = await base44.entities.Driver.filter({ phone: trimmedPhone });
-      let d;
-      if (existing.length > 0) {
-        d = existing[0];
-        await base44.entities.Driver.update(d.id, {
-          name: trimmedName,
-          neighborhood_group: group,
-          district: d.district || group,
-          is_online: true,
-          status: 'available',
-        });
-        d = { ...d, name: trimmedName, phone: trimmedPhone, neighborhood_group: group, is_online: true, online_status: true };
-      } else {
-        d = await base44.entities.Driver.create({
-          name: trimmedName,
-          phone: trimmedPhone,
-          district: group,
-          neighborhood_group: group,
-          is_online: true,
-          is_approved: true,
-          daily_earnings: 0,
-          total_orders: 0,
-          status: 'available',
-        });
-      }
-      localStorage.setItem('wafarDriver', JSON.stringify({ ...d, online_status: true, is_online: true }));
-    } catch {
-      const d = {
-        id: `demo-${trimmedPhone.replace(/\D/g, '')}`,
-        name: trimmedName,
-        phone: trimmedPhone,
-        neighborhood_group: group,
-        district: group,
-        online_status: true,
-        is_online: true,
-        is_approved: true,
-        daily_earnings: 0,
-        total_orders: 0,
-        _localDemo: true,
-      };
-      localStorage.setItem('wafarDriver', JSON.stringify(d));
-    }
+    const d = {
+      id: `demo-${trimmedPhone.replace(/\D/g, '')}`,
+      name: trimmedName,
+      phone: trimmedPhone,
+      neighborhood_group: group,
+      district: group,
+      online_status: true,
+      is_online: true,
+      is_approved: true,
+      daily_earnings: 0,
+      total_orders: 0,
+      status: 'available',
+      _localDemo: true,
+    };
+    localStorage.setItem('wafarDriver', JSON.stringify(d));
     setLoading(false);
     navigate('/driver/home');
   };
