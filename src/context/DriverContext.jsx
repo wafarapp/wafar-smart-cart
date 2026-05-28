@@ -193,7 +193,7 @@ export function DriverProvider({ children }) {
     };
 
     const unsubLocal = subscribeToLocalOrders((detail) => {
-      if (detail?.type === 'create' && detail.order?._localMock) {
+      if (detail?.type === 'create') {
         notifyNewLocalOrder(detail.order);
       }
       loadData(true);
