@@ -390,6 +390,7 @@ const interval = setInterval(() => loadData(true), 2000);
       if (order._localMock) {
         const updated = updateLocalOrder(order.id, acceptPatch);
         setActiveOrder(updated || { ...order, ...acceptPatch });
+        activeOrderRef.current = updated || { ...order, ...acceptPatch };
       } else if (!d._localDemo) {
         const fresh = await base44.entities.Order.get(order.id);
         if (fresh.driver_id && fresh.driver_id !== d.id) {
