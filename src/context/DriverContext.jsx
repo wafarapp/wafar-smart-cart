@@ -385,7 +385,7 @@ const interval = setInterval(() => loadData(true), 2000);
       driver_name: d.name,
       driver_phone: d.phone,
     };
-
+    updateLocalOrder(order.id, acceptPatch);
     try {
       if (order._localMock) {
         const updated = updateLocalOrder(order.id, acceptPatch);
