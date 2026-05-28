@@ -87,7 +87,10 @@ export function DriverProvider({ children }) {
         }
 
         const local = getLocalOrdersForPhone();
-      const allOrders = [...remote, ...local];
+        const allOrders = [...remote, ...local].filter(
+          (order, index, self) =>
+            index === self.findIndex(o => o.id === order.id)
+        );
         const d = driverRef.current;
         const rejected = getRejectedOrderIds();
 
