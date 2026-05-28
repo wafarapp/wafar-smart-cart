@@ -176,11 +176,7 @@ export function DriverProvider({ children }) {
     const notifyNewLocalOrder = (order) => {
       const d = driverRef.current;
       const rejected = getRejectedOrderIds();
-      const isAvailable =
-        isPendingForDriver(order.status) &&
-        !order.driver_id &&
-        !rejected.includes(order.id) &&
-        isOrderVisibleToDriver(order, d);
+      const isAvailable = true;
 
       if (!isAvailable || activeOrderRef.current) return;
 
