@@ -1,0 +1,18 @@
+rules_version = '2';
+
+// Development-only rules — tighten before production.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /orders/{orderId} {
+      allow read, write: if true;
+    }
+
+    match /drivers/{driverId} {
+      allow read, write: if true;
+    }
+
+    match /stores/{storeId} {
+      allow read, write: if true;
+    }
+  }
+}

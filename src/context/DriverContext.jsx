@@ -10,7 +10,8 @@ import {
   subscribeToDriverActiveOrder,
   subscribeToDriverDeliveredOrders,
   acceptOrderByDriver,
-  updateOrderStatus,
+  markOrderPickedUp,
+  markOrderDelivered,
 } from '@/lib/ordersService';
 
 const DriverContext = createContext(null);
@@ -276,7 +277,9 @@ export function DriverProvider({ children }) {
   };
 
   const advanceOrderStatus = async () => {
-    if (!activeOrder) return;
+    const current = activeOrderRef.current;
+    if (!current?.id) return;
+
     const flow = {
       accepted_by_driver: 'picked_up',
       driver_assigned: 'picked_up',
@@ -284,21 +287,24 @@ export function DriverProvider({ children }) {
       picked_up: 'delivered',
       on_the_way: 'delivered',
     };
-    const next = flow[activeOrder.status];
+    const next = flow[current.status];
     if (!next) return;
 
     setActionError(null);
-    const now = new Date().toISOString();
-    const patch = { status: next };
-    if (next === 'picked_up') patch.picked_up_date = now;
-    if (next === 'delivered') patch.delivered_date = now;
 
     try {
-      await updateOrderStatus(activeOrder.id, patch);
-      const updatedOrder = { ...activeOrder, ...patch };
-
-      if (next === 'delivered') {
-        const orderEarning = activeOrder.driver_fee ?? 12;
+      if (next === 'picked_up') {
+        await markOrderPickedUp(current.id);
+        const updatedOrder = {
+          ...current,
+          status: 'picked_up',
+          picked_up_date: new Date().toISOString(),
+        };
+        setActiveOrder(updatedOrder);
+        activeOrderRef.current = updatedOrder;
+      } else if (next === 'delivered') {
+        await markOrderDelivered(current.id);
+        const orderEarning = current.driver_fee ?? 12;
         const updatedDriver = {
           ...driver,
           daily_earnings: (driver.daily_earnings || 0) + orderEarning,
@@ -312,9 +318,6 @@ export function DriverProvider({ children }) {
         setActiveOrder(null);
         activeOrderRef.current = null;
         loadData(true);
-      } else {
-        setActiveOrder(updatedOrder);
-        activeOrderRef.current = updatedOrder;
       }
     } catch (err) {
       console.warn('[DriverContext] advanceOrderStatus failed:', err.message);

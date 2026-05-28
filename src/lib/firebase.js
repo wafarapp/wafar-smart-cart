@@ -2,12 +2,12 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: 'AIzaSyDNLtODxOIE6AFTvZ-md3kwDbKKv5zE5Sg',
+  authDomain: 'wafar-6049c.firebaseapp.com',
+  projectId: 'wafar-6049c',
+  storageBucket: 'wafar-6049c.firebasestorage.app',
+  messagingSenderId: '329464437093',
+  appId: '1:329464437093:web:b6b180f41ce03fff3da98c',
 };
 
 const app = initializeApp(firebaseConfig);

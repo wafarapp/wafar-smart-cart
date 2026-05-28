@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, TrendingUp, Package, Clock, Star, BarChart2 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
 import { getDeliveredOrdersByDriver } from '@/lib/ordersService';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
@@ -41,12 +40,7 @@ export default function DriverAnalytics() {
     } catch {
       setOrders([]);
     }
-    try {
-      const rats = await base44.entities.Rating.filter({ driver_id: driver.id });
-      setRatings(rats);
-    } catch {
-      setRatings([]);
-    }
+    setRatings([]);
     setLoading(false);
   };
 

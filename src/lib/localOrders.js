@@ -22,6 +22,16 @@ export function finalizeCheckout(order, { phone, clearCartKey } = {}) {
  * Returns { order, isLocalMock: false }.
  */
 export async function createOrder(payload) {
-  const order = await createOrderInFirestore(payload);
-  return { order, isLocalMock: false };
+  try {
+    const order = await createOrderInFirestore(payload);
+    return { order, isLocalMock: false };
+  } catch (err) {
+    console.error('[localOrders] createOrder failed:', {
+      code: err?.code,
+      message: err?.message,
+      order_number: payload?.order_number,
+      error: err,
+    });
+    throw err;
+  }
 }

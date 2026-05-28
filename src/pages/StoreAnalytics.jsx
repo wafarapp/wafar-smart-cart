@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, TrendingUp, Package, Clock, DollarSign } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { getOrdersByStoreId } from '@/lib/ordersService';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from 'recharts';
 
 const glass = { background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: '16px' };
@@ -32,7 +32,7 @@ export default function StoreAnalytics() {
 
   const loadData = async () => {
     setLoading(true);
-    const ords = await base44.entities.Order.filter({ store_id: store.id });
+    const ords = await getOrdersByStoreId(store.id);
     setOrders(ords);
     setLoading(false);
   };

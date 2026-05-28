@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Store, Bike, ShoppingBag, TrendingUp, Settings, ChevronRight, Check, X, Plus, BookOpen, ChevronDown, MapPin } from 'lucide-react';
 import { NEIGHBORHOOD_NAMES } from '@/lib/neighborhoodZones';
+import { getRecentOrders } from '@/lib/ordersService';
 import BottomSheet from '../components/BottomSheet';
 import { base44 } from '@/api/base44Client';
 
@@ -31,7 +32,7 @@ export default function AdminDashboard() {
     const [s, d, o, f] = await Promise.all([
       base44.entities.Store.list(),
       base44.entities.Driver.list(),
-      base44.entities.Order.list('-created_date', 50),
+      getRecentOrders(50),
       base44.entities.DeliveryFee.list()
     ]);
     setStores(s); setDrivers(d); setOrders(o); setFees(f);

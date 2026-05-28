@@ -10,7 +10,7 @@ import {
   Ruler,
   ShoppingBag,
 } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { getRecentOrders } from '@/lib/ordersService';
 import {
   NEIGHBORHOOD_NAMES,
   NEIGHBORHOOD_GROUPS,
@@ -44,7 +44,7 @@ export default function NeighborhoodZones() {
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const o = await base44.entities.Order.list('-created_date', 500);
+      const o = await getRecentOrders(500);
       setOrders(o);
     } catch {
       setOrders([]);

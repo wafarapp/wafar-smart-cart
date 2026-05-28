@@ -125,11 +125,15 @@ export default function CustomerCart() {
 
   const clearCart = () => { setCart([]); localStorage.removeItem('wafarCart'); };
 
+  useEffect(() => {
+    if (!createdOrder) return;
+    const t = setTimeout(() => setShowTrackBtn(true), 3000);
+    return () => clearTimeout(t);
+  }, [createdOrder?.id]);
+
   const placeOrder = async () => {
-    // Prevent duplicate submissions
     if (!selectedOption || placing || createdOrder) return;
 
-    // Require verified login
     if (!customer.verified || !customer.phone) {
       navigate('/login?returnUrl=/cart');
       return;
@@ -150,23 +154,22 @@ export default function CustomerCart() {
       setZoneError(OUT_OF_SERVICE_MESSAGE);
       return;
     }
+
     setZoneError('');
-    
-    // Generate unique checkout session ID for idempotency
     const sessionId = `checkout_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     setCheckoutSessionId(sessionId);
     setPlacing(true);
-    
+
+    let orderPayload;
     try {
       const orderNum = 'WFR' + Date.now().toString().slice(-6);
-      const orderPayload = {
+      orderPayload = {
         order_number: orderNum,
         customer_phone: customer.phone,
         customer_name: customer.name,
         store_id: selectedOption.store.id,
         store_name: selectedOption.store.name,
         order_type: 'grocery',
-        status: 'pending',
         delivery_mode: selectedOption.mode,
         items_total: selectedOption.itemsTotal,
         delivery_fee: zone.customer_delivery_fee,
@@ -182,78 +185,26 @@ export default function CustomerCart() {
         checkout_session_id: sessionId,
       };
 
-      const { order, isLocalMock } = await createOrder(orderPayload);
-
-      if (!isLocalMock) {
-        if (paymentMethod === 'wallet' && wallet) {
-          const newBal = (wallet.balance || 0) - selectedOption.total;
-          await base44.entities.Wallet.update(wallet.id, { balance: Math.max(0, newBal) });
-          await base44.entities.WalletTransaction.create({
-            customer_phone: customer.phone,
-            wallet_id: wallet.id,
-            type: 'debit',
-            amount: selectedOption.total,
-            description: `دفع طلب من ${selectedOption.store.name}`,
-            balance_after: Math.max(0, newBal),
-          });
-        }
-
-        if (customer.phone) {
-          try {
-            const loyalties = await base44.entities.LoyaltyPoints.filter({ customer_phone: customer.phone });
-            let loy = loyalties[0];
-            const tierMultiplier = !loy ? 1 : loy.tier === 'بلاتيني' ? 5 : loy.tier === 'ذهبي' ? 3 : loy.tier === 'فضي' ? 2 : 1;
-            const earned = Math.floor(selectedOption.itemsTotal) * tierMultiplier;
-
-            if (!loy) {
-              loy = await base44.entities.LoyaltyPoints.create({
-                customer_phone: customer.phone,
-                customer_name: customer.name,
-                points_balance: earned,
-                total_earned: earned,
-                total_redeemed: 0,
-                tier: 'برونزي',
-              });
-            } else {
-              const newBal = (loy.points_balance || 0) + earned;
-              const newTotal = (loy.total_earned || 0) + earned;
-              const newTier = newTotal >= 4000 ? 'بلاتيني' : newTotal >= 1500 ? 'ذهبي' : newTotal >= 500 ? 'فضي' : 'برونزي';
-              await base44.entities.LoyaltyPoints.update(loy.id, { points_balance: newBal, total_earned: newTotal, tier: newTier });
-              loy = { ...loy, id: loy.id, points_balance: newBal };
-            }
-            await base44.entities.LoyaltyTransaction.create({
-              customer_phone: customer.phone,
-              loyalty_id: loy.id,
-              type: 'earn',
-              points: earned,
-              description: `شراء من ${selectedOption.store.name}`,
-              order_id: order.id,
-              balance_after: loy.points_balance,
-            });
-          } catch (loyaltyErr) {
-            console.warn('[CustomerCart] Loyalty update skipped:', loyaltyErr.message);
-          }
-        }
-      }
-
-      finalizeCheckout(order, { phone: customer.phone, clearCartKey: 'wafarCart' });
+      const { order } = await createOrder(orderPayload);
+      finalizeCheckout(order, {
+        phone: customer.phone,
+        clearCartKey: 'wafarCart',
+      });
       setCart([]);
       setCreatedOrder(order);
-      setPlacing(false);
     } catch (err) {
-      console.error('Order creation failed:', err);
-      setPlacing(false);
+      console.error('[CustomerCart] placeOrder failed:', {
+        code: err?.code,
+        message: err?.message,
+        order_number: orderPayload?.order_number,
+        error: err,
+      });
       setCheckoutSessionId(null);
-      alert('فشل إنشاء الطلب. يرجى المحاولة مرة أخرى.');
+      alert('فشل إنشاء الطلب، يرجى المحاولة مرة أخرى');
+    } finally {
+      setPlacing(false);
     }
   };
-
-  // Show track button after 3 seconds
-  useEffect(() => {
-    if (!createdOrder) return;
-    const t = setTimeout(() => setShowTrackBtn(true), 3000);
-    return () => clearTimeout(t);
-  }, [createdOrder?.id]);
 
   if (createdOrder) {
     return (

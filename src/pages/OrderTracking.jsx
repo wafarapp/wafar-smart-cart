@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Phone, Star, Package, Clock, MapPin, CheckCircle2, Bike, Store, ShoppingBag, Gift, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
 import {
   getOrderByIdOrNumber,
   getLatestOrderByCustomerPhone,
-  subscribeToOrder,
+  subscribeToOrderByIdOrNumber,
 } from '@/lib/ordersService';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -96,15 +95,21 @@ const getStatusStepMap = (orderType) => {
       accepted_by_driver: 'preparing',
       picked_up: 'on_the_way',
       on_the_way: 'on_the_way',
+      delivered: 'delivered',
     };
   }
   return {
     available_for_driver: 'pending',
     pending: 'pending',
+    accepted_by_store: 'accepted_by_store',
+    preparing: 'preparing',
+    ready_for_pickup: 'ready_for_pickup',
     driver_assigned: 'ready_for_pickup',
     accepted_by_driver: 'ready_for_pickup',
-    picked_up: 'on_the_way',
     assigned_to_driver: 'ready_for_pickup',
+    picked_up: 'on_the_way',
+    on_the_way: 'on_the_way',
+    delivered: 'delivered',
   };
 };
 
@@ -148,6 +153,23 @@ export default function OrderTracking() {
     } catch { return null; }
   };
 
+  const initPositions = (o) => {
+    const base = DISTRICT_COORDS[o.district] || [24.7136, 46.6753];
+    setCustomerPos(base);
+    setDriverPos([base[0] + 0.015, base[1] - 0.01]);
+  };
+
+  const updateDriverPos = (o) => {
+    const base = DISTRICT_COORDS[o.district] || [24.7136, 46.6753];
+    if (['accepted_by_driver', 'driver_assigned', 'assigned_to_driver'].includes(o.status)) {
+      setDriverPos([base[0] + 0.012, base[1] - 0.008]);
+    } else if (o.status === 'on_the_way' || o.status === 'picked_up') {
+      setDriverPos([base[0] + 0.008, base[1] - 0.005]);
+    } else if (o.status === 'delivered') {
+      setDriverPos([...base]);
+    }
+  };
+
   const applyOrder = (o) => {
     setOrder(o);
     initPositions(o);
@@ -156,6 +178,16 @@ export default function OrderTracking() {
     }
     setLoading(false);
     setLoadError(false);
+  };
+
+  const applyOrderUpdate = (updated) => {
+    if (!updated) return;
+    setOrder(updated);
+    setCustomerPos((prev) => prev ?? (DISTRICT_COORDS[updated.district] || [24.7136, 46.6753]));
+    updateDriverPos(updated);
+    if (updated.cart_items) {
+      try { setCartItems(JSON.parse(updated.cart_items)); } catch {}
+    }
   };
 
   const fetchOrder = async (id) => {
@@ -212,39 +244,25 @@ export default function OrderTracking() {
     initTracking().finally(() => clearTimeout(timeout));
 
     return () => clearTimeout(timeout);
-  }, []);
+  }, [urlOrderId, retryCount]);
 
-  // Real-time subscription — Firestore orders
+  // Realtime — subscribe by Firestore id or order_number from URL/storage
   useEffect(() => {
-    if (!order?.id) return;
-    if (order.status === 'delivered' || order.status === 'cancelled') return;
+    const trackKey = urlOrderId || getOrderId();
+    if (!trackKey) return;
 
-    const unsubscribe = subscribeToOrder(order.id, (updated) => {
+    const unsubscribe = subscribeToOrderByIdOrNumber(trackKey, (updated) => {
       if (!updated) return;
-      setOrder(updated);
-      updateDriverPos(updated);
-      if (updated.cart_items) {
-        try { setCartItems(JSON.parse(updated.cart_items)); } catch {}
+      applyOrderUpdate(updated);
+      setLoading(false);
+      setLoadError(false);
+      if (updated.order_number) {
+        window.history.replaceState(null, '', `/track/${updated.order_number}`);
       }
     });
 
     return () => unsubscribe();
-  }, [order?.id, order?.status]);
-
-  const initPositions = (o) => {
-    const base = DISTRICT_COORDS[o.district] || [24.7136, 46.6753];
-    setCustomerPos(base);
-    setDriverPos([base[0] + 0.015, base[1] - 0.01]);
-  };
-
-  const updateDriverPos = (o) => {
-    const base = DISTRICT_COORDS[o.district] || [24.7136, 46.6753];
-    if (o.status === 'on_the_way' || o.status === 'picked_up') {
-      setDriverPos([base[0] + 0.008, base[1] - 0.005]);
-    } else if (o.status === 'delivered') {
-      setDriverPos([...base]);
-    }
-  };
+  }, [urlOrderId, retryCount]);
 
   const handleRetry = async () => {
     setLoadError(false);
@@ -275,23 +293,20 @@ export default function OrderTracking() {
   const currentStep = statusSteps[currentStepIdx] || statusSteps[0];
 
   const submitRating = async () => {
-    const currentId = getOrderId();
-    await base44.entities.Rating.create({
-      order_id: currentId,
+    const ratingData = {
+      order_id: order.id,
       customer_phone: order.customer_phone,
       store_id: order.store_id,
       driver_id: order.driver_id,
       store_rating: rating.store,
       driver_rating: rating.driver,
       comment: rating.comment,
-    });
-    if (order.driver_id) {
-      const driver = await base44.entities.Driver.get(order.driver_id).catch(() => null);
-      if (driver) {
-        const count = (driver.rating_count || 0) + 1;
-        const avg = (((driver.rating_avg || 5) * (driver.rating_count || 0)) + rating.driver) / count;
-        await base44.entities.Driver.update(driver.id, { rating_avg: parseFloat(avg.toFixed(1)), rating_count: count });
-      }
+      created_date: new Date().toISOString(),
+    };
+    try {
+      localStorage.setItem(`wafarRating_${order.id}`, JSON.stringify(ratingData));
+    } catch {
+      /* ignore storage errors */
     }
     setRating(r => ({ ...r, submitted: true }));
   };

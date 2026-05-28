@@ -4,6 +4,7 @@ import { Package, ShoppingBag, Plus, Check, X, ChevronRight, ChevronDown } from 
 import usePullToRefresh from '../hooks/usePullToRefresh.jsx';
 import BottomSheet from '../components/BottomSheet';
 import { base44 } from '@/api/base44Client';
+import { subscribeToStoreOrders, updateOrderStatus as updateOrderInFirestore } from '@/lib/ordersService';
 import WafarMap, { storeIcon, DISTRICT_COORDS } from '../components/WafarMap';
 import { Marker, Popup } from 'react-leaflet';
 
@@ -35,33 +36,33 @@ export default function StoreDashboard() {
     if (store) loadData();
   }, [store]);
 
-  // Realtime subscription — new orders appear instantly
+  // Realtime subscription — new orders appear instantly (Firestore)
   useEffect(() => {
     if (!store) return;
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
-    const unsub = base44.entities.Order.subscribe((event) => {
-      if (event.type === 'create' && event.data?.store_id === store?.id) {
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification('🛒 طلب جديد!', { body: `قيمة الطلب: ${event.data.total_amount?.toFixed(2)} ريال` });
-        }
+    let prevCount = orders.length;
+    const unsub = subscribeToStoreOrders(store.id, (ords) => {
+      if (ords.length > prevCount && 'Notification' in window && Notification.permission === 'granted') {
+        const newest = ords[0];
+        new Notification('🛒 طلب جديد!', {
+          body: `قيمة الطلب: ${newest?.total_amount?.toFixed(2)} ريال`,
+        });
       }
-      loadData();
+      prevCount = ords.length;
+      setOrders(ords);
+      setLoading(false);
     });
     return () => unsub();
   }, [store?.id]);
 
   async function loadData() {
     setLoading(true);
-    const [prods, ords] = await Promise.all([
-    base44.entities.Product.filter({ store_id: store.id }),
-    base44.entities.Order.filter({ store_id: store.id })]
-    );
+    const prods = await base44.entities.Product.filter({ store_id: store.id });
     setProducts(prods);
-    setOrders(ords.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
     setLoading(false);
-  };
+  }
 
   const logout = () => {
     localStorage.removeItem('wafarStore');
@@ -132,8 +133,7 @@ export default function StoreDashboard() {
   };
 
   const updateOrderStatus = async (orderId, newStatus) => {
-    await base44.entities.Order.update(orderId, { status: newStatus });
-    loadData();
+    await updateOrderInFirestore(orderId, { status: newStatus });
   };
 
   const todayOrders = orders.filter((o) => new Date(o.created_date).toDateString() === new Date().toDateString());
