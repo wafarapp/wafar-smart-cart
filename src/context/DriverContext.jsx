@@ -117,6 +117,7 @@ export function DriverProvider({ children }) {
     if (!driver?.id) return;
 
     loadData(true);
+const interval = setInterval(() => loadData(true), 2000);
     setIsOnline(driver.is_online ?? driver.online_status ?? false);
 
     if ('Notification' in window && Notification.permission === 'default') {
